@@ -4,6 +4,7 @@ from flask import abort
 from flask import make_response
 import json
 import sqlite3
+from time import gmtime,strftime
 
 
 app = Flask(__name__)
@@ -94,6 +95,45 @@ def upd_user(user):
     return "Success"
     conn.close()
 
+def list_tweets():
+    conn = sqlite3.connect('mydb.db')
+    print("Opened database successfully");
+    api_list = []
+    cursor = conn.cursor()
+    cursor.execute("SELECT username,body,tweet_time,id from tweets")
+    data = cursor.fetchall()
+    print(data)
+    if len(data) == 0:
+        #abort(404)
+        return jsonify({'tweets_list': api_list})
+    else:
+        for row in data:
+            tweets = {}
+            tweets['Tweet By'] = row[0]
+            tweets['Body'] = row[1]
+            tweets['Timestamp'] = row[2]
+            tweets['Id'] = row[3]
+            print(tweets)
+            api_list.append(tweets)
+    conn.close()
+    print(api_list)
+    return jsonify({'tweets_list': api_list})
+    
+def add_tweet(new_tweets):
+    conn = sqlite3.connect('mydb.db')
+    print("Opened database successfully");
+    cursor=conn.cursor()
+    cursor.execute("select * from users where username=?",(new_tweets['username'],))
+    data = cursor.fetchall()
+    if len(data) == 0:
+        abort(404)
+    else:
+        cursor.execute("insert into tweets (username,body,tweet_time) values (?,?,?)",(new_tweets['username'],new_tweets['body'],new_tweets['created_at']))
+        conn.commit()
+        conn.close()
+        return "Success"
+
+
 
 @app.route("/api/v1/info")
 def home_index():
@@ -150,6 +190,21 @@ def update_user(user_id):
     print(user)
     return jsonify({'status': upd_user(user)}) , 200
 
+@app.route('/api/v2/tweets', methods=['GET'])
+def get_tweets():
+    return list_tweets()
+
+@app.route('/api/v2/tweets', methods=['POST'])
+def add_tweets():
+    user_tweet = {}
+    if not request.json or not 'username' in request.json or not 'body' in request.json:
+        abort(400)
+    user_tweet['username'] = request.json['username']
+    user_tweet['body'] = request.json['body']
+    user_tweet['created_at'] = strftime("%Y-%m-%dT%H:%M:%SZ",gmtime())
+    print(user_tweet)
+    return jsonify({'status': add_tweet(user_tweet)}),201
+    
 
 
 @app.errorhandler(404)
